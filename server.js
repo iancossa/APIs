@@ -1,4 +1,4 @@
-//mongodb file ready
+//mongodb file
 require("./config/db");
 
 const app = require("express")();
