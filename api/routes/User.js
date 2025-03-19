@@ -5,7 +5,7 @@ const router = express.Router();
 const User = require("./../models/User");
 
 //mongodb userVerification model
-const User = require("./../models/UserVerification");
+const UserVerification = require("./../models/UserVerification");
 
 //password handler
 const bcrypt = require("bcrypt");
@@ -24,44 +24,49 @@ let transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
     user: process.env.AUTH_EMAIL,
-    user: process.env.AUTH_PASS,
+    pass: process.env.AUTH_PASS, // Fixed typo
   },
 });
 
 //testing the transporter
-if (error) {
-  console.log(error);
-} else {
-  console.log("Ready for messages");
-}
+transporter.verify((error, success) => {
+  if (error) {
+    console.log(error);
+  } else {
+    console.log("Ready for messages");
+  }
+});
 
 //Sign Up
-router.post("/singup", (req, res) => {
+router.post("/signup", (req, res) => {
+  // Fixed route name
   let { name, email, password, dateOfBirth } = req.body;
   name = name.trim();
   email = email.trim();
   password = password.trim();
   dateOfBirth = dateOfBirth.trim();
 
-  if (name == "" || email == "" || password == "" || dateOfBirth == "") {
+  if (name === "" || email === "" || password === "" || dateOfBirth === "") {
     res.json({
       status: "FAILED",
       message: "Empty input fields!",
     });
-  } else if (!/^[a-zA-zA]*$/.test(name)) {
+  } else if (!/^[a-zA-Z]*$/.test(name)) {
     res.json({
       status: "FAILED",
       message: "Invalid name entered",
     });
-  } else if (!/^[w-]+\.)+[\w-]{2,4}/.test(email)) {
+  } else if (!/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/.test(email)) {
+    // Fixed regex
     res.json({
       status: "FAILED",
       message: "Invalid email entered",
     });
-  } else if (new Date(dateOfBirth).getTime()) {
+  } else if (isNaN(new Date(dateOfBirth).getTime())) {
+    // Fixed date validation
     res.json({
       status: "FAILED",
-      message: "Invalid date of Birth entered",
+      message: "Invalid date of birth entered",
     });
   } else if (password.length < 8) {
     res.json({
@@ -78,14 +83,12 @@ router.post("/singup", (req, res) => {
             message: "User with the provided email already exists",
           });
         } else {
-          //try to create a new user
-
           //password handling
           const saltRounds = 10;
           bcrypt
             .hash(password, saltRounds)
             .then((hashedPassword) => {
-              const newUSer = new User({
+              const newUser = new User({
                 name,
                 email,
                 password: hashedPassword,
@@ -93,56 +96,50 @@ router.post("/singup", (req, res) => {
                 verified: false,
               });
 
-              newUSer
+              newUser
                 .save()
                 .then((result) => {
-                  //sending the verification email after registration
-                  sendVerificationEmail(result,)
-                  });
+                  sendVerificationEmail(result); // Fixed function call
                 })
                 .catch((err) => {
                   res.json({
                     status: "FAILED",
-                    message: "An error occured while saving user account! ",
+                    message: "An error occurred while saving user account!",
                   });
                 });
             })
             .catch((err) => {
               res.json({
                 status: "FAILED",
-                message: "An error occured while hashing the password! ",
+                message: "An error occurred while hashing the password!",
               });
             });
         }
       })
       .catch((err) => {
-        console.log(err);
         res.json({
           status: "FAILED",
-          message: "An error ocurred while checking for existing user!",
+          message: "An error occurred while checking for existing user!",
         });
       });
   }
 });
 
-//Sign In Or Login
+//Sign In
 router.post("/signin", (req, res) => {
   let { email, password } = req.body;
   email = email.trim();
   password = password.trim();
 
-  if (email == "" || password == "") {
+  if (email === "" || password === "") {
     res.json({
       status: "FAILED",
       message: "Empty credentials supplied",
     });
   } else {
-    //check if user exist
     User.find({ email })
       .then((data) => {
-        if (data) {
-          //User exists
-
+        if (data.length) {
           const hashedPassword = data[0].password;
           bcrypt
             .compare(password, hashedPassword)
@@ -161,7 +158,10 @@ router.post("/signin", (req, res) => {
               }
             })
             .catch((err) => {
-              status: "An error occured while comparing passwords";
+              res.json({
+                status: "FAILED",
+                message: "An error occurred while comparing passwords",
+              });
             });
         } else {
           res.json({
@@ -173,9 +173,10 @@ router.post("/signin", (req, res) => {
       .catch((err) => {
         res.json({
           status: "FAILED",
-          message: "An error occured while checking for existing  user",
+          message: "An error occurred while checking for existing user",
         });
       });
   }
 });
+
 module.exports = router;
