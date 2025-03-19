@@ -6,6 +6,7 @@ const UserSchema = new SchemaTypeOptions({
   email: String,
   password: String,
   dateOfBirth: Date,
+  verified: boolean,
 });
 
 const User = mongoose.model("User", UserSchema);
