@@ -17,6 +17,10 @@ const nodemailer = require("nodemailer");
 const { v4: uuidv4 } = require("uuid");
 const { errorMonitor } = require("nodemailer/lib/xoauth2");
 
+//path for static verified page
+const path = require("path");
+const { error } = require("console");
+
 //env variables
 require("dotenv").config();
 
@@ -179,6 +183,45 @@ bcrypt
       message: "An error occured while hashing email data!",
     });
   });
+
+//verify email
+router.get("", (req, res) => {
+  let { userId, uniqueString } = req.params;
+
+  UserVerification.find({ userId })
+    .then((result) => {
+      if (result.length > 0) {
+        //user verification record exists, then we proceed
+        const { expiresAt } = result[0];
+        if (expiresAt < Date.now()) {
+          //record has expired so we can delete it
+          UserVerification.deleteOne({ userId })
+            .then()
+            .catch((error) => {
+              console.log(error);
+              let message = "An erro occured while clearing expires user verification record";
+              res.redirect("/user/verified/error=true&messages=${message}");
+            });
+        }
+      } else {
+        //user verification record doesn't exist
+        let message =
+          "Account record record doesn't exist or have been verified already . Please sign up or log in.";
+        res.redirect("/user/verified/error=true&messages=${message}");
+      }
+    })
+    .catch((error) => {
+      console.log(error);
+      let message =
+        "An erro occured while checking for existing user verification record!";
+      res.redirect("/user/verified/error=true&messages=${message}");
+    });
+});
+
+//Verified  proof page route
+router.get("/verified", (req, res) => {
+  res.sendFile(path.join(__dirname, "./../views/verifiedproof.html"));
+});
 
 //Sign In
 router.post("/signin", (req, res) => {
