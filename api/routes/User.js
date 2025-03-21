@@ -15,6 +15,7 @@ const nodemailer = require("nodemailer");
 
 //unique string
 const { v4: uuidv4 } = require("uuid");
+const { errorMonitor } = require("nodemailer/lib/xoauth2");
 
 //env variables
 require("dotenv").config();
@@ -124,6 +125,60 @@ router.post("/signup", (req, res) => {
       });
   }
 });
+
+//send verification email
+const sendVerificationEmail = ({ _id, email }, res) => {
+  //url to be used in the email
+  const currentUrl = "http://localhost:5000/";
+  const uniqueString = uuidv4() + _id;
+
+  //mail options
+  const mailOption = {
+    from: process.env.AUTH_EMAIL,
+    to: email,
+    subject: "Verify Your Email",
+    html: '<p>Verify your email Adrress to complete the signup and login into your account</p><p><b>This link expires in 8hrs</b></p><p>Press <a href =${currentUrl + "user/verify/"+ _id + "/" + uniqueString }here</a>to proceed></p>',
+  };
+  //?!doubts: this html script over thre on the link it should with other color, is it working ?!?
+};
+
+//hash the unique string
+const saltRounds = 10;
+bcrypt
+  .hash(uniqueString, saltRounds)
+  .then((hashedUniqueString) => {
+    //set values in userVerification collection
+    const newVerification = newVerification({
+      userId: _id,
+      uniqueString: hashedUniqueString,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + 28800000,
+    });
+    newVerification
+      .save()
+      .then(() => {
+        transporter.sendMail(mailOption).then.catch((error) => {
+          //email sent and verification record saved
+          res.json({
+            status: "PENDING",
+            message: "Verification email sent",
+          });
+        });
+      })
+      .catch((error) => {
+        console.log(error);
+        res.json({
+          status: "FAILED",
+          message: "Oops,couldn't save verification email data",
+        });
+      });
+  })
+  .catch(() => {
+    res.json({
+      status: "FAILED",
+      message: "An error occured while hashing email data!",
+    });
+  });
 
 //Sign In
 router.post("/signin", (req, res) => {
