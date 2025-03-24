@@ -20,6 +20,7 @@ const { errorMonitor } = require("nodemailer/lib/xoauth2");
 //path for static verified page
 const path = require("path");
 const { error } = require("console");
+const { verify } = require("crypto");
 
 //env variables
 require("dotenv").config();
@@ -193,13 +194,72 @@ router.get("", (req, res) => {
       if (result.length > 0) {
         //user verification record exists, then we proceed
         const { expiresAt } = result[0];
+        const hashedUniqueString = result[0].uniqueString;
+
+        //checking for expired unique string
         if (expiresAt < Date.now()) {
           //record has expired so we can delete it
           UserVerification.deleteOne({ userId })
-            .then()
+            .then((result) => {
+              User.deleteOne({ _id: userId })
+                .then(() => {
+                  let message = "Link as expired. Please sign up again.";
+                  res.redirect("/user/verified/error=true&messages=${message}");
+                })
+                .catch((error) => {
+                  console.log(error);
+                  let message =
+                    "Clearing user with expired unique string failed";
+                  res.redirect("/user/verified/error=true&messages=${message}");
+                });
+            })
             .catch((error) => {
               console.log(error);
-              let message = "An erro occured while clearing expires user verification record";
+              let message =
+                "An erro occured while clearing expires user verification record";
+              res.redirect("/user/verified/error=true&messages=${message}");
+            });
+        } else {
+          //valid record exists so we validate the user string
+          //1st compare the hashed unique string
+          bcrypt
+            .compare(uniqueString, hashedUniqueString)
+            .then((result) => {
+              if (result) {
+                //strings match
+                User.updateOne({ _id: userId }, { verified: true }).then(() => {
+                  UserVerification.deleteOne({ userId })
+                    .then(() => {
+                      res.sendFile(
+                        path.join(__dirname, "./../views/verifiedproof.html")
+                      );
+                    })
+                    .catch((error) => {
+                      console.log(error);
+                      let message =
+                        "An error occured while finalizing verification.";
+                      res.redirect(
+                        "/user/verified/error=true&messages=${message}"
+                      );
+                    })
+                    .catch((error) => {
+                      console.log(error);
+                      let message =
+                        "An error occured while updating user record to show verified.";
+                      res.redirect(
+                        "/user/verified/error=true&messages=${message}"
+                      );
+                    });
+                });
+              } else {
+                //existing record but incorrect verification details passed
+                let message =
+                  "Invalid verification details passed. Check your inbox.";
+                res.redirect("/user/verified/error=true&messages=${message}");
+              }
+            })
+            .catch((error) => {
+              let message = "An error occured while comparing unique strings.";
               res.redirect("/user/verified/error=true&messages=${message}");
             });
         }
@@ -238,29 +298,39 @@ router.post("/signin", (req, res) => {
     User.find({ email })
       .then((data) => {
         if (data.length) {
-          const hashedPassword = data[0].password;
-          bcrypt
-            .compare(password, hashedPassword)
-            .then((result) => {
-              if (result) {
-                res.json({
-                  status: "SUCCESS",
-                  message: "Signin successful",
-                  data: data,
-                });
-              } else {
+          //User exists
+
+          //check if user is verified
+          if (!data[0].verified) {
+            res.json({
+              status: "Failed",
+              message: "Email hasn't been verified yet.Check your inbox.",
+            });
+          } else {
+            const hashedPassword = data[0].password;
+            bcrypt
+              .compare(password, hashedPassword)
+              .then((result) => {
+                if (result) {
+                  res.json({
+                    status: "SUCCESS",
+                    message: "Signin successful",
+                    data: data,
+                  });
+                } else {
+                  res.json({
+                    status: "FAILED",
+                    message: "Invalid password entered!",
+                  });
+                }
+              })
+              .catch((err) => {
                 res.json({
                   status: "FAILED",
-                  message: "Invalid password entered!",
+                  message: "An error occurred while comparing passwords",
                 });
-              }
-            })
-            .catch((err) => {
-              res.json({
-                status: "FAILED",
-                message: "An error occurred while comparing passwords",
               });
-            });
+          }
         } else {
           res.json({
             status: "FAILED",
