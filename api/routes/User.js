@@ -2,10 +2,13 @@ const express = require("express");
 const router = express.Router();
 
 //mongodb user model
-const User = require("./../models/User");
+const User = require("./../../models/Usuario");
 
 //mongodb userVerification model
-const UserVerification = require("./../models/UserVerification");
+const UserVerification = require("./../../models/Verification");
+
+//mongodb ResetPassword model
+const ResetPassword = require("./../../models/ResetPassword");
 
 //password handler
 const bcrypt = require("bcrypt");
@@ -345,6 +348,28 @@ router.post("/signin", (req, res) => {
         });
       });
   }
+});
+
+//Password reset
+router.post("/requestResetPassword", (req, res) => {
+  const { email, redirectUrl } = req.body;
+
+  User.find({ email }),
+    then((data) => {
+      if (data.length) {
+      } else {
+        res.json({
+          status: "FAILED",
+          message: "No account with the supplied email exists",
+        });
+      }
+    }).catch((error) => {
+      console.log(error);
+      res.json({
+        status: "FAILED",
+        message: "An error occurred while checking for existing user",
+      });
+    });
 });
 
 module.exports = router;

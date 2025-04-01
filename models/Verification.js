@@ -11,4 +11,4 @@ const VerificationSchema = new Schema({
 
 const Verification = mongoose.model("Verification", VerificationSchema);
 
-module.exports = User;
+module.exports = Verification;
