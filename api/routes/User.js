@@ -145,9 +145,10 @@ const sendVerificationEmail = ({ _id, email }, res) => {
     from: process.env.AUTH_EMAIL,
     to: email,
     subject: "Verify Your Email",
-    html: '<p>Verify your email Adrress to complete the signup and login into your account</p><p><b>This link expires in 8hrs</b></p><p>Press <a href =${currentUrl + "user/verify/"+ _id + "/" + uniqueString }here</a>to proceed></p>',
+    html: `<p>Verify your email Adrress to complete the signup and login into your account</p><p><b>This link expires in 8hrs</b></p><p>Press <a href =${
+      currentUrl + "user/verify/" + _id + "/" + uniqueString
+    }here</a>to proceed></p>`,
   };
-  //?!doubts: this html script over thre on the link it should with other color, is it working ?!?
 };
 
 //hash the unique string
@@ -357,6 +358,17 @@ router.post("/requestResetPassword", (req, res) => {
   User.find({ email }),
     then((data) => {
       if (data.length) {
+        //user exists
+
+        //check if user is verified
+        if (!data[0].verified) {
+          res.json({
+            status: "Email hasn't been verified yet. Check your inbox",
+          });
+        } else {
+          //proceed with email to reset password
+          sendResetEmail(data[0], redirectUrl, res);
+        }
       } else {
         res.json({
           status: "FAILED",
@@ -371,5 +383,59 @@ router.post("/requestResetPassword", (req, res) => {
       });
     });
 });
+
+//send password reset
+
+const sendResetEmail = ({ _id, email }, redirectUrl, res) => {
+  const resetString = uuidv4 + _id;
+
+  //First, we clear all existing records
+  PasswordReset.deleteMany({ userId: _id })
+    .then((result) => {
+      //Reset records deleted successfully
+      //Now we send the email
+
+      //mail options
+      const mailOption = {
+        from: process.env.AUTH_EMAIL,
+        to: email,
+        subject: "Reset Password",
+        html: `<p>We heard that you lost your password</p><p>Use the link bellow to reset your password</p><p><b>This link expires in 60 minutes</b></p><p>Press <a href =${
+          currentUrl + "/" + _id + "/" + resetString
+        }here</a>to proceed></p>`,
+      };
+
+      //hash the reset string
+      const saltRounds = 10;
+      bcrypt
+        .hash(resetString, saltRounds)
+        .then((hashedResetString) => {
+          //set values in password reset collection
+          const newPassswordReset = new PasswordReset({
+            userId: _id,
+            resetString: hashedResetString,
+            createdAt: Date.now(),
+            expiredAt: Date.now() + 3600000,
+          });
+
+          newPasswordReset.save().then().catch();
+        })
+        .catch((error) => {
+          console.log(error);
+          res.json({
+            status: "FAILED",
+            message: "An error occured while hashing  the password reset data!",
+          });
+        });
+    })
+    .catch((error) => {
+      //error while clearing existing records
+      console.log(error);
+      res.json({
+        status: "FAILED",
+        message: "Clearing existing password reset records failed!",
+      });
+    });
+};
 
 module.exports = router;
